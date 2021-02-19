@@ -12,7 +12,8 @@
       - CompoMe::String to_component WITH ""
     PORT:
       - OUT
-    SWIG: true
+    OPTIONS:
+      SWIG: true
 
 - LINK:
     NAME: CompoMe::Zmq::Zmq_server_in
@@ -20,7 +21,8 @@
       - CompoMe::String bind_addr
     PORT:
       - IN
-    SWIG: true
+    OPTIONS:
+      SWIG: true
 
 - LINK:
     NAME: CompoMe::Zmq::Zmq_server_interface_in
@@ -28,7 +30,8 @@
       - CompoMe::String bind_addr
     PORT:
       - MAP_IN
-    SWIG: true
+    OPTIONS:
+      SWIG: true
 
 - LINK:
     NAME: CompoMe::Zmq::Zmq_server_component_interface_in
@@ -36,4 +39,5 @@
       - CompoMe::String bind_addr
     PORT:
       - MAP_MAP_IN
-    SWIG: true
+    OPTIONS:
+      SWIG: true
