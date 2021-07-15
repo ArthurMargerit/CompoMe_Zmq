@@ -1,82 +1,69 @@
 #pragma once
 
-#include "Links/Link.hpp"
-
-namespace CompoMe {
-class Function_stream;
-class Return_stream;
-class Interface;
-} // namespace CompoMe
-
 #include "Data/CompoMe_Zmq.hpp"
+
+#include "Links/Link.hpp"
+#include "Links/CompoMe/Posix/Fake_pack.hpp"
+// TYPES
+
+#include "Types/CompoMe/String.hpp"
+// STRUCT
+
+// PORT
+
+#include "Ports/CompoMe/Stream/out.hpp"
+
+#include "Ports/CompoMe/Stream/map_out.hpp"
 
 namespace CompoMe {
 
 namespace Zmq {
-class Zmq_client_out;
 
-class Function_string_stream_send : public CompoMe::Function_stream_send {
-private:
-  std::stringstream a_ss;
-  Zmq_client_out &a_l;
-
-public:
-  Function_string_stream_send(Zmq_client_out &p_l);
-  void start() final;
-  void send() final;
-  std::ostream &get_so() override { return this->a_ss; }
-};
-
-class Return_string_stream_recv : public CompoMe::Return_stream_recv {
-private:
-  std::stringstream a_ss;
-  Zmq_client_out &a_l;
-public:
-  Return_string_stream_recv(Zmq_client_out &p_l);
-  void pull() final;
-  void end() final;
-  std::istream &get_si() override { return this->a_ss; }
-};
-
-class Zmq_client_out : public CompoMe::Link, public CompoMe::Link_out {
+class Zmq_client_out : public CompoMe::Link {
 public:
   Zmq_client_out();
   virtual ~Zmq_client_out();
 
   void step() override;
-  void connect() override;
-  void disconnect() override;
+  void main_connect() override;
+  void main_disconnect() override;
+
+  // one connect
+  void one_connect(CompoMe::Require_helper &, CompoMe::String c) override;
+  void one_connect(CompoMe::Interface &, CompoMe::String) override;
+
+  // one disconnect
+  void one_disconnect(CompoMe::Require_helper &, CompoMe::String) override;
+  void one_disconnect(CompoMe::Interface &, CompoMe::String) override;
 
   // Get and set /////////////////////////////////////////////////////////////
 
-  virtual CompoMe::String get_addr() const;
-  virtual void set_addr(const CompoMe::String addr);
+  CompoMe::String get_addr() const;
+  void set_addr(const CompoMe::String addr);
+  CompoMe::String &a_addr();
 
-  virtual CompoMe::String get_to_interface() const;
-  virtual void set_to_interface(const CompoMe::String to_interface);
+  // Get Port /////////////////////////////////////////////////////////////
 
-  virtual CompoMe::String get_to_component() const;
-  virtual void set_to_component(const CompoMe::String to_component);
+  CompoMe::Stream::out &get_main();
+  CompoMe::Stream::map_out &get_many();
 
 public:
   // Function
   // ///////////////////////////////////////////////////////////////////
-  void *get_sock() { return this->a_requester; }
 
 private:
-  // DATA ////////////////////////////////////////////////////////////////////
   void *a_context;
   void *a_requester;
+  std::map<CompoMe::String, struct CompoMe::Posix::Fake_pack> fake_many;
 
-  CompoMe::Fake_stream *f;
-  Function_string_stream_send fss;
-  Return_string_stream_recv rsr;
 
+  // DATA ////////////////////////////////////////////////////////////////////
   CompoMe::String addr;
 
-  CompoMe::String to_interface;
+  // PORT ////////////////////////////////////////////////////////////////////
+  CompoMe::Stream::out main;
+  CompoMe::Stream::map_out many;
 
-  CompoMe::String to_component;
 };
 
 } // namespace Zmq

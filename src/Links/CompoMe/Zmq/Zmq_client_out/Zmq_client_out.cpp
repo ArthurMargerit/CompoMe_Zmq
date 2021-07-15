@@ -1,104 +1,84 @@
 #include "Links/CompoMe/Zmq/Zmq_client_out/Zmq_client_out.hpp"
 #include "CompoMe/Log.hpp"
 #include "Interfaces/Interface.hpp"
-#include <iostream>
-#include <string.h>
 #include <zmq.h>
+
 
 namespace CompoMe {
 
 namespace Zmq {
 
-Zmq_client_out::Zmq_client_out() : CompoMe::Link(), fss(*this), rsr(*this) {
-  a_context = zmq_ctx_new();
-  a_requester = zmq_socket(a_context, ZMQ_REQ);
+Zmq_client_out::Zmq_client_out() : CompoMe::Link(), main(), many() {
+  C_INFO_TAG("zmq,client", "Creation of Zmq client");
+
+  this->main.set_link(*this);
+  this->many.set_link(*this);
+
+  this->a_context = zmq_ctx_new();
+  this->a_requester = zmq_socket(a_context, ZMQ_REQ);
 }
 
 Zmq_client_out::~Zmq_client_out() {
+  C_INFO_TAG("zmq,client", "destruction of Zmq client");
   zmq_close(this->a_requester);
   zmq_ctx_term(this->a_context);
 }
 
 void Zmq_client_out::step() { Link::step(); }
 
-void Zmq_client_out::connect() {
-  Link::connect();
-  auto r = zmq_connect(this->a_requester, this->addr.str.c_str());
-  if (r != 0) {
-    C_ERROR_TAG("zmq,client,connect", "Fail of connection at ", this->addr,
-                " with (", errno, ") ", strerror(errno));
-  }
+  void Zmq_client_out::main_connect() {
+    C_INFO_TAG("zmq,client", "Connection ", this->get_addr());
+    Link::main_connect();
 
-  this->f = this->a_re->fake_stream_it(fss, rsr);
-  if (this->f == NULL) {
-    C_ERROR_TAG(
-        "zmq,client,fake",
-        "The build of fake_stream fail. it will no be possible to call it.");
-  }
+    auto r = zmq_connect(this->a_requester, this->addr.str.c_str());
+    if (r != 0) {
+      C_ERROR_TAG("zmq,client,connect", "Fail of connection at ", this->addr,
+                  " with (", errno, ") ", strerror(errno));
+    }
+ }
+
+void Zmq_client_out::main_disconnect() { Link::main_disconnect(); }
+
+// one connect
+void Zmq_client_out::one_connect(CompoMe::Require_helper &p_r,
+                                 CompoMe::String p_key) {
+
+  auto &nc = this->fake_many[p_key];
+
+  nc.fss.set_func_send([this, p_key](CompoMe::String_d &d) {
+    C_DEBUG_TAG("zmq,client,recv", "ask: ", d);
+    zmq_send(this->a_requester, d.str.c_str(),
+             d.str.size(), 0);
+
+    return true;
+  });
+
+  nc.rss.set_func_recv([this](CompoMe::String_d &d) {
+    char l_buffer[1024 + 2];
+    auto e = zmq_recv(this->a_requester, l_buffer, 1024, 0);
+    l_buffer[e] = ' ';
+    l_buffer[e + 1] = '\0';
+
+    C_DEBUG_TAG("zmq,client,recv", "answer: ", l_buffer);
+
+    std::string str(l_buffer);
+    d = str;
+
+    return true;
+  });
+
+  nc.f = p_r.fake_stream_it(nc.fss, nc.rss);
 }
 
-void Zmq_client_out::disconnect() {
-  Link::disconnect();
-  if (this->f != nullptr) {
-    delete this->f;
-  }
-}
+void Zmq_client_out::one_connect(CompoMe::Interface &p_i,
+                                 CompoMe::String p_key) {}
 
-CompoMe::String Zmq_client_out::get_addr() const { return this->addr; }
+// one disconnect
+void Zmq_client_out::one_disconnect(CompoMe::Require_helper &p_r,
+                                    CompoMe::String p_key) {}
 
-void Zmq_client_out::set_addr(const CompoMe::String p_addr) {
-  this->addr = p_addr;
-}
-CompoMe::String Zmq_client_out::get_to_interface() const {
-  return this->to_interface;
-}
-
-void Zmq_client_out::set_to_interface(const CompoMe::String p_to_interface) {
-  this->to_interface = p_to_interface;
-}
-CompoMe::String Zmq_client_out::get_to_component() const {
-  return this->to_component;
-}
-
-void Zmq_client_out::set_to_component(const CompoMe::String p_to_component) {
-  this->to_component = p_to_component;
-}
-
-// stream
-Return_string_stream_recv::Return_string_stream_recv(Zmq_client_out &p_l)
-    : CompoMe::Return_stream_recv(), a_l(p_l) {}
-
-void Return_string_stream_recv::pull() {
-  char l_buffer[1024 + 2];
-  auto e = zmq_recv(this->a_l.get_sock(), l_buffer, 1024, 0);
-
-  l_buffer[e] = ' ';
-  l_buffer[e + 1] = '\0';
-  C_DEBUG_TAG("zmq,client,recv", "answer: ", l_buffer);
-  std::string str(l_buffer);
-  this->a_ss.str(str);
-}
-
-void Return_string_stream_recv::end() { this->a_ss.str(""); }
-
-Function_string_stream_send::Function_string_stream_send(Zmq_client_out &p_l)
-    : a_l(p_l) {}
-void Function_string_stream_send::start() {
-  this->a_ss.str("");
-  if (this->a_l.get_to_component().str != "") {
-    this->a_ss << this->a_l.get_to_component().str << ".";
-  }
-
-  if (this->a_l.get_to_interface().str != "") {
-    this->a_ss << this->a_l.get_to_interface().str << ".";
-  }
-}
-
-void Function_string_stream_send::send() {
-  C_DEBUG_TAG("zmq,client,send", "call: ", this->a_ss.str());
-  zmq_send(this->a_l.get_sock(), this->a_ss.str().c_str(),
-           this->a_ss.str().size(), 0);
-}
+void Zmq_client_out::one_disconnect(CompoMe::Interface &p_i,
+                                    CompoMe::String p_key) {}
 
 } // namespace Zmq
 
